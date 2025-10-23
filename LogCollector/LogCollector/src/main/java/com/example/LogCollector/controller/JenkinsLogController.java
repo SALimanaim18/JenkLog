@@ -1,7 +1,9 @@
 package com.example.LogCollector.controller;
 
-import com.example.LogCollector.dto.JenkinsLogDTO;
 import com.example.LogCollector.service.JenkinsLogService;
+import com.example.LogCollector.dto.PipelineDTO;
+import com.example.LogCollector.dto.BuildDTO;
+import com.example.LogCollector.dto.LogDTO;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
@@ -22,279 +24,225 @@ public class JenkinsLogController {
     private String webhookSecretToken;
 
     /**
-     * ENDPOINT 1: Manual Collection
-     * POST http://localhost:8081/api/jenkins-logs/collect/project5
-     */
-    @PostMapping("/collect/{jobName}")
-    public ResponseEntity<?> collectLog(@PathVariable String jobName) {
-        try {
-            System.out.println("📌 Manual collection requested for job: " + jobName);
-            JenkinsLogDTO log = logService.collectJobLog(jobName);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("message", "Logs collected and saved to database");
-            response.put("data", log);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            System.err.println("❌ Error: " + e.getMessage());
-            Map<String, String> error = new HashMap<>();
-            error.put("status", "error");
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(error);
-        }
-    }
-
-    /**
-     * ENDPOINT 2: Automatic Collection from Jenkins Webhook
-     * Jenkins sends: POST /api/jenkins-logs/webhook?jobName=project5&buildNumber=10&buildStatus=SUCCESS&token=xxx
-     * Uses collectAndSaveLogs method for efficient log collection with provided build info
+     * WEBHOOK ENDPOINT - Called by Jenkins
+     * POST /api/jenkins-logs/webhook?jobName=project5&buildNumber=10&buildStatus=SUCCESS&token=xxx
      */
     @PostMapping("/webhook")
     public ResponseEntity<?> webhookCollectLog(
             @RequestParam String jobName,
-            @RequestParam(required = false) Integer buildNumber,
-            @RequestParam(required = false) String buildStatus,
+            @RequestParam Integer buildNumber,
+            @RequestParam String buildStatus,
             @RequestParam String token) {
         try {
             if (!token.equals(webhookSecretToken)) {
-                System.err.println("❌ Invalid webhook token received");
+                System.err.println("❌ Invalid webhook token");
                 Map<String, String> error = new HashMap<>();
                 error.put("status", "error");
-                error.put("error", "Invalid webhook token");
+                error.put("message", "Invalid webhook token");
                 return ResponseEntity.status(403).body(error);
             }
 
-            System.out.println("✓ Webhook received from Jenkins");
-            System.out.println("   Job: " + jobName);
-            System.out.println("   Build Number: " + buildNumber);
-            System.out.println("   Build Status: " + buildStatus);
+            System.out.println("✓ Webhook received - Job: " + jobName + ", Build: " + buildNumber);
 
-            JenkinsLogDTO log;
-            if (buildNumber != null && buildStatus != null) {
-                log = logService.collectAndSaveLogs(jobName, buildNumber, buildStatus);
-            } else {
-                log = logService.collectJobLog(jobName);
-            }
+            BuildDTO build = logService.collectAndSaveLogs(jobName, buildNumber, buildStatus);
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("message", "Logs automatically collected from Jenkins webhook");
-            response.put("jobName", jobName);
-            response.put("buildNumber", log.getBuildNumber());
-            response.put("buildStatus", log.getBuildStatus());
-            response.put("logNumber", log.getLogNumber());
-            response.put("data", log);
+            response.put("message", "Build logs collected and saved");
+            response.put("data", build);
 
-            System.out.println("✓ Webhook processed successfully - Log #" + log.getLogNumber());
+            System.out.println("✅ Webhook processed successfully");
             return ResponseEntity.ok(response);
 
         } catch (Exception e) {
             System.err.println("❌ Webhook error: " + e.getMessage());
-            e.printStackTrace();
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
-            error.put("error", "Webhook processing failed: " + e.getMessage());
+            error.put("message", e.getMessage());
             return ResponseEntity.status(500).body(error);
         }
     }
 
     /**
-     * ENDPOINT 3: Get Single Log by ID
-     * GET http://localhost:8081/api/jenkins-logs/1
+     * GET all pipelines
+     * GET /api/jenkins-logs/pipelines
      */
-    @GetMapping("/{id}")
-    public ResponseEntity<?> getLog(@PathVariable Long id) {
+    @GetMapping("/pipelines")
+    public ResponseEntity<?> getAllPipelines() {
         try {
-            JenkinsLogDTO log = logService.getLogById(id);
+            List<PipelineDTO> pipelines = logService.getAllPipelines();
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("totalPipelines", pipelines.size());
+            response.put("data", pipelines);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
 
-            if (log == null) {
+    /**
+     * GET pipeline by name
+     * GET /api/jenkins-logs/pipelines/search?name=project5
+     */
+    @GetMapping("/pipelines/search")
+    public ResponseEntity<?> getPipelineByName(@RequestParam String name) {
+        try {
+            PipelineDTO pipeline = logService.getPipelineByName(name);
+            if (pipeline == null) {
                 return ResponseEntity.notFound().build();
             }
-
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("data", log);
-
+            response.put("data", pipeline);
             return ResponseEntity.ok(response);
-
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
-            error.put("error", e.getMessage());
+            error.put("message", e.getMessage());
             return ResponseEntity.status(500).body(error);
         }
     }
 
     /**
-     * ENDPOINT 4: Get ALL Logs for a Specific Job
-     * GET http://localhost:8081/api/jenkins-logs/job/project5
+     * GET all builds for a pipeline
+     * GET /api/jenkins-logs/pipelines/{pipelineId}/builds
      */
-    @GetMapping("/job/{jobName}")
-    public ResponseEntity<?> getLogsByJob(@PathVariable String jobName) {
+    @GetMapping("/pipelines/{pipelineId}/builds")
+    public ResponseEntity<?> getBuildsByPipeline(@PathVariable Long pipelineId) {
         try {
-            System.out.println("📊 Fetching all logs for job: " + jobName);
-            List<JenkinsLogDTO> logs = logService.getLogsByJobName(jobName);
-
+            List<BuildDTO> builds = logService.getBuildsByPipeline(pipelineId);
             Map<String, Object> response = new HashMap<>();
             response.put("status", "success");
-            response.put("jobName", jobName);
+            response.put("pipelineId", pipelineId);
+            response.put("totalBuilds", builds.size());
+            response.put("data", builds);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    /**
+     * GET all logs for a build
+     * GET /api/jenkins-logs/builds/{buildId}/logs
+     */
+    @GetMapping("/builds/{buildId}/logs")
+    public ResponseEntity<?> getLogsByBuild(@PathVariable Long buildId) {
+        try {
+            List<LogDTO> logs = logService.getLogsByBuild(buildId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("buildId", buildId);
             response.put("totalLogs", logs.size());
             response.put("data", logs);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
 
-            Map<String, Long> statusSummary = new HashMap<>();
-            for (JenkinsLogDTO log : logs) {
-                String status = log.getBuildStatus();
-                statusSummary.put(status, statusSummary.getOrDefault(status, 0L) + 1);
+    /**
+     * GET error logs only for a build
+     * GET /api/jenkins-logs/builds/{buildId}/errors
+     */
+    @GetMapping("/builds/{buildId}/errors")
+    public ResponseEntity<?> getErrorLogsByBuild(@PathVariable Long buildId) {
+        try {
+            List<LogDTO> errors = logService.getErrorLogsByBuild(buildId);
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("buildId", buildId);
+            response.put("totalErrors", errors.size());
+            response.put("data", errors);
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, String> error = new HashMap<>();
+            error.put("status", "error");
+            error.put("message", e.getMessage());
+            return ResponseEntity.status(500).body(error);
+        }
+    }
+
+    /**
+     * GET build details by ID
+     * GET /api/jenkins-logs/builds/{buildId}
+     */
+    @GetMapping("/builds/{buildId}")
+    public ResponseEntity<?> getBuildById(@PathVariable Long buildId) {
+        try {
+            BuildDTO build = logService.getBuildById(buildId);
+            if (build == null) {
+                return ResponseEntity.notFound().build();
             }
-            response.put("statusSummary", statusSummary);
-
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "success");
+            response.put("data", build);
             return ResponseEntity.ok(response);
-
         } catch (Exception e) {
             Map<String, String> error = new HashMap<>();
             error.put("status", "error");
-            error.put("error", e.getMessage());
+            error.put("message", e.getMessage());
             return ResponseEntity.status(500).body(error);
         }
     }
 
     /**
-     * ENDPOINT 5: Get ALL Logs from ALL Jobs
-     * GET http://localhost:8081/api/jenkins-logs/all
-     */
-    @GetMapping("/all")
-    public ResponseEntity<?> getAllLogs() {
-        try {
-            System.out.println("📊 Fetching all logs from all jobs");
-            List<JenkinsLogDTO> logs = logService.getAllLogs();
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("status", "success");
-            response.put("totalLogs", logs.size());
-            response.put("data", logs);
-
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            Map<String, Object> error = new HashMap<>();
-            error.put("status", "error");
-            error.put("error", e.getMessage());
-            return ResponseEntity.status(500).body(error);
-        }
-    }
-
-    /**
-     * ENDPOINT 6: Health Check
-     * GET http://localhost:8081/api/jenkins-logs/health
+     * HEALTH CHECK
+     * GET /api/jenkins-logs/health
      */
     @GetMapping("/health")
     public ResponseEntity<?> health() {
         try {
-            List<JenkinsLogDTO> allLogs = logService.getAllLogs();
-
-            Map<String, String> jobStatuses = new HashMap<>();
-            Map<String, Object> jobDetails = new HashMap<>();
-
-            for (JenkinsLogDTO log : allLogs) {
-                String jobName = log.getJobName();
-                if (!jobStatuses.containsKey(jobName)) {
-                    jobStatuses.put(jobName, log.getBuildStatus());
-
-                    Map<String, Object> details = new HashMap<>();
-                    details.put("buildStatus", log.getBuildStatus());
-                    details.put("buildNumber", log.getBuildNumber());
-                    details.put("lastUpdated", log.getCreatedAt());
-                    details.put("logNumber", log.getLogNumber());
-                    jobDetails.put(jobName, details);
-                }
-            }
+            List<PipelineDTO> pipelines = logService.getAllPipelines();
 
             Map<String, Object> response = new HashMap<>();
             response.put("status", "UP");
             response.put("service", "Jenkins Log Collector");
-            response.put("totalJobs", jobStatuses.size());
-            response.put("totalLogs", allLogs.size());
-            response.put("jobStatuses", jobStatuses);
-            response.put("jobDetails", jobDetails);
+            response.put("totalPipelines", pipelines.size());
             response.put("timestamp", java.time.LocalDateTime.now().toString());
+            response.put("pipelines", pipelines);
 
             return ResponseEntity.ok(response);
-
         } catch (Exception e) {
             Map<String, Object> error = new HashMap<>();
             error.put("status", "DOWN");
-            error.put("error", e.getMessage());
+            error.put("message", e.getMessage());
             return ResponseEntity.status(500).body(error);
         }
     }
 
     /**
-     * ENDPOINT 7: API Info
-     * GET http://localhost:8081/api/jenkins-logs/info
+     * API INFO
+     * GET /api/jenkins-logs/info
      */
     @GetMapping("/info")
     public ResponseEntity<?> info() {
         Map<String, Object> info = new HashMap<>();
         info.put("service", "Jenkins Log Collector Microservice");
-        info.put("version", "1.0.0");
+        info.put("version", "2.0.0");
+        info.put("structure", "Pipeline -> Build -> Logs");
         info.put("endpoints", new HashMap<String, String>() {{
-            put("Manual Collection", "POST /api/jenkins-logs/collect/{jobName}");
-            put("Auto Webhook", "POST /api/jenkins-logs/webhook?jobName={jobName}&buildNumber={num}&buildStatus={status}&token={token}");
-            put("Get Log by ID", "GET /api/jenkins-logs/{id}");
-            put("Get Job Logs", "GET /api/jenkins-logs/job/{jobName}");
-            put("Get All Logs", "GET /api/jenkins-logs/all");
+            put("Webhook", "POST /api/jenkins-logs/webhook?jobName={name}&buildNumber={num}&buildStatus={status}&token={token}");
+            put("Get All Pipelines", "GET /api/jenkins-logs/pipelines");
+            put("Get Pipeline by Name", "GET /api/jenkins-logs/pipelines/search?name={name}");
+            put("Get Builds for Pipeline", "GET /api/jenkins-logs/pipelines/{pipelineId}/builds");
+            put("Get Build Details", "GET /api/jenkins-logs/builds/{buildId}");
+            put("Get Build Logs", "GET /api/jenkins-logs/builds/{buildId}/logs");
+            put("Get Error Logs", "GET /api/jenkins-logs/builds/{buildId}/errors");
             put("Health Check", "GET /api/jenkins-logs/health");
             put("API Info", "GET /api/jenkins-logs/info");
         }});
 
         return ResponseEntity.ok(info);
     }
-
-    /**
-     * ENDPOINT 8: Get Console Log Only
-     * GET http://localhost:8081/api/jenkins-logs/{id}/console
-     * Returns only the raw console log text
-     */
-    @GetMapping("/{id}/console")
-    public ResponseEntity<String> getConsoleLog(@PathVariable Long id) {
-        try {
-            String consoleLog = logService.getConsoleLogById(id);
-
-            if (consoleLog == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            return ResponseEntity.ok()
-                    .header("Content-Type", "text/plain; charset=UTF-8")
-                    .body(consoleLog);
-
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("Error retrieving console log: " + e.getMessage());
-        }
-    }
-
-
-
-
-    /**
-     * ENDPOINT 9: Get All Console Logs (Merged)
-     * GET http://localhost:8081/api/jenkins-logs/all/console
-     */
-    @GetMapping("/all/console")
-    public ResponseEntity<String> getAllConsoleLogs() {
-        try {
-            String allConsoles = logService.getAllConsoleLogs();
-            return ResponseEntity.ok()
-                    .header("Content-Type", "text/plain; charset=UTF-8")
-                    .body(allConsoles);
-        } catch (Exception e) {
-            return ResponseEntity.status(500)
-                    .body("❌ Error retrieving all console logs: " + e.getMessage());
-        }
-    }
-
 }

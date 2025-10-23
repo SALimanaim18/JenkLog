@@ -2,27 +2,20 @@ package com.example.LogCollector.dto;
 
 import java.time.LocalDateTime;
 
-public class JenkinsLogDTO {
-
+public class LogDTO {
     private Long id;
-    private Integer logNumber;
-    private String jobName;
-    private Integer buildNumber;
-    private String extractedErrors;
-    private String buildStatus;
+    private String logLevel;
+    private String message;
+    private String stackTrace;
     private LocalDateTime createdAt;
 
-    // Constructor
-    public JenkinsLogDTO() {}
+    public LogDTO() {}
 
-    public JenkinsLogDTO(Long id, Integer logNumber, String jobName, Integer buildNumber,
-                         String extractedErrors, String buildStatus, LocalDateTime createdAt) {
+    public LogDTO(Long id, String logLevel, String message, String stackTrace, LocalDateTime createdAt) {
         this.id = id;
-        this.logNumber = logNumber;
-        this.jobName = jobName;
-        this.buildNumber = buildNumber;
-        this.extractedErrors = extractedErrors;
-        this.buildStatus = buildStatus;
+        this.logLevel = logLevel;
+        this.message = message;
+        this.stackTrace = stackTrace;
         this.createdAt = createdAt;
     }
 
@@ -30,20 +23,14 @@ public class JenkinsLogDTO {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public Integer getLogNumber() { return logNumber; }
-    public void setLogNumber(Integer logNumber) { this.logNumber = logNumber; }
+    public String getLogLevel() { return logLevel; }
+    public void setLogLevel(String logLevel) { this.logLevel = logLevel; }
 
-    public String getJobName() { return jobName; }
-    public void setJobName(String jobName) { this.jobName = jobName; }
+    public String getMessage() { return message; }
+    public void setMessage(String message) { this.message = message; }
 
-    public Integer getBuildNumber() { return buildNumber; }
-    public void setBuildNumber(Integer buildNumber) { this.buildNumber = buildNumber; }
-
-    public String getExtractedErrors() { return extractedErrors; }
-    public void setExtractedErrors(String extractedErrors) { this.extractedErrors = extractedErrors; }
-
-    public String getBuildStatus() { return buildStatus; }
-    public void setBuildStatus(String buildStatus) { this.buildStatus = buildStatus; }
+    public String getStackTrace() { return stackTrace; }
+    public void setStackTrace(String stackTrace) { this.stackTrace = stackTrace; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
