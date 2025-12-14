@@ -1,42 +1,36 @@
 server:
-  port: 8080
+  port: 8095
+  netty:
+    max-initial-line-length: 16384  # ← مهم جداً لـ Netty!
 
 spring:
   application:
     name: api-gateway
   cloud:
     gateway:
-      discovery:
-        locator:
-          enabled: true
-          lower-case-service-id: true
+      httpclient:
+        connect-timeout: 60000
+        response-timeout: 120s
+        max-header-size: 131072  # ← زيد هنا أيضاً
       routes:
-        - id: log-collector
-          uri: lb://log-collector
+        - id: jenkins-logs
+          uri: lb://JENKINS-LOG-COLLECTOR  # ← استعمل Eureka service name
           predicates:
-            - Path=/log-collector/**
+            - Path=/api/jenkins-logs/**
           filters:
-            - StripPrefix=1
-        
-        - id: log-analyser
-          uri: lb://log-analyser
-          predicates:
-            - Path=/log-analyser/**
-          filters:
-            - StripPrefix=1
+            - RemoveRequestHeader=Forwarded  # ← احذف الـ headers المكررة
+            - RemoveRequestHeader=X-Forwarded-For
+            - RemoveRequestHeader=X-Forwarded-Proto
+            - RemoveRequestHeader=X-Forwarded-Port
+            - RemoveRequestHeader=X-Forwarded-Host
 
 eureka:
   client:
     service-url:
-      defaultZone: http://localhost:8761/eureka/
+      defaultZone: http://localhost:8761/eureka
     register-with-eureka: true
     fetch-registry: true
-  instance:
-    prefer-ip-address: true
-    instance-id: ${spring.application.name}:${random.value}
 
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info,metrics,gateway
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG

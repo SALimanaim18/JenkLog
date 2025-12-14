@@ -1,0 +1,62 @@
+spring:
+  application:
+    name: jenkins-log-collector
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/jenkins_log
+    username: postgres
+    password: root
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+    topic:
+      name: last_build
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+      indent-output: true
+    time-zone: UTC
+    default-property-inclusion: non_null
+
+  main:
+    allow-bean-definition-overriding: true
+
+server:
+  port: 8081
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+    register-with-eureka: true
+    fetch-registry: true
+  instance:
+    hostname: localhost
+    prefer-ip-address: true
+
+jenkins:
+  url: http://localhost:8080
+  username: hacarii
+  api-key: 11ef8ab6e1cc40e1d901ab2bd19fe7a4e7
+
+webhook:
+  secret-token: 11b43c9d5a3e123cc2bfa57cb6462fca85
+
+logging:
+  level:
+    root: INFO
+    com.example.LogCollector: DEBUG

@@ -1,9 +1,9 @@
-server:
-  port: 8761
-
 spring:
   application:
     name: eureka-server
+
+server:
+  port: 8761
 
 eureka:
   instance:
@@ -11,13 +11,12 @@ eureka:
   client:
     register-with-eureka: false
     fetch-registry: false
-    service-url:
-      defaultZone: http://${eureka.instance.hostname}:${server.port}/eureka/
-  server:
-    enable-self-preservation: false
 
 management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: "*"
+  endpoint:
+    health:
+      show-details: always

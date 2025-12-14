@@ -1,0 +1,6 @@
+spring:
+  application:
+    name: jenkins-log-collector
+  cloud:
+    config:
+      uri: http://localhost:8888
